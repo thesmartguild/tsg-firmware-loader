@@ -1,0 +1,11 @@
+Author: Brian O'Connell
+Date: June 30, 2015
+
+For some reason TFTPServer is in the apache documentation for commons-net but isn't in the jar.
+I speculate it is only in the test code.
+http://commons.apache.org/proper/commons-net/testapidocs/org/apache/commons/net/tftp/TFTPServer.html
+
+So i have taken the source code provided in the source download and added it to the resources of my-lib
+
+NOTE:
+This is not my code and I havenpt edited it!

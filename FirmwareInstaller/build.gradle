@@ -1,0 +1,177 @@
+/*
+ *    FirmwareInstaller - Used to install firmware on embedded devices including wireless routers.
+ *    Copyright (C) 2015 The Smart Guild LLC
+ *    http://www.thesmartguild.com
+ *    Author: Todd O'Connell todd@thesmartguild.com
+ *
+ *    This program is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+apply plugin: 'base'
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+version = '.5 alpha'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+	su_and_dependencies
+}
+
+test {
+    systemProperties 'property': 'value'
+}
+
+dependencies {
+	compile (	
+     	'commons-collections:commons-collections:3.2',
+ 		'commons-codec:commons-codec:1.10',
+		'commons-net:commons-net:3.3',
+		'com.vnetpublishing.java:super-user-application:0.0.5',
+ 		'org.bidib.com.neuronrobotics:nrjavaserial:3.9.2.1',
+		files('src/main/resources/jacob/jacob.jar')
+	)
+    testCompile (
+    	'junit:junit:4.+'
+	)
+	su_and_dependencies (
+		'com.vnetpublishing.java:super-user-application:0.0.5'
+	)	
+}
+
+uploadArchives {
+    repositories {
+       flatDir {
+           dirs 'repos'
+       }
+    }
+}
+
+clean {
+	delete "$rootDir/src/main/resources/sudo-jars/windows/NetworkSetStaticIP.jar"
+	delete "$rootDir/src/main/resources/sudo-jars/windows/NetworkSettingsRestore.jar"
+}
+
+/*
+ * Build NetworkStateRestore jar for priviledged access to restore Windows network settings
+ */
+
+task NetworkSettingsRestoreJar(type: Jar) {
+	description = 'NetworkSettingsRestore Jar Build'
+    baseName = 'NetworkSettingsRestore'
+    destinationDir = file('src/main/resources/sudo-jars/windows')
+    archiveName = baseName + '.jar'
+    
+	manifest {
+        attributes	'Implementation-Title': 'NetworkSettingsRestore Jar',  
+        			'Implementation-Version': version,
+        			'Main-Class': 'com.thesmartguild.firmloader.nativelib.networking.windows.NetworkSettingsRestore'
+    }
+
+	exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/*.MF'
+
+	// Include the jacob DLLs
+    from (sourceSets.main.resources) {
+    	include "native/**"
+    }
+ 	
+ 	// Include the native lib class files
+    from (sourceSets.main.output) {
+        include "com/thesmartguild/firmloader/nativelib/**"
+    }
+    
+    // Include unzipped copy of jacob
+    from zipTree('src/main/resources/jacob/jacob.jar')
+
+	// Include unzipped superuser_application jar and it's dependencies
+  	from ( configurations.su_and_dependencies.collect { it.isDirectory() ? it : zipTree(it) } )
+  
+ }
+
+ task NetworkSetStaticIPJar(type: Jar) {
+	description = 'NetworkSetStaticIP Jar Build'
+    baseName = 'NetworkSetStaticIP'
+    destinationDir = file('src/main/resources/sudo-jars/windows')
+    archiveName = baseName + '.jar'
+    
+	manifest {
+        attributes	'Implementation-Title': 'NetworkSetStaticIP Jar',  
+        			'Implementation-Version': version,
+        			'Main-Class': 'com.thesmartguild.firmloader.nativelib.networking.windows.NetworkSetStaticIP'
+    }
+
+	exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/*.MF'
+
+	// Include the jacob DLLs
+    from (sourceSets.main.resources) {
+    	include "native/**"
+    }
+ 	
+ 	// Include the native lib class files
+    from (sourceSets.main.output) {
+        include "com/thesmartguild/firmloader/nativelib/**"
+    }
+    
+    // Include unzipped copy of jacob
+     from zipTree('src/main/resources/jacob/jacob.jar')
+
+	// Include unzipped superuser_application jar and it's dependencies
+  	from ( configurations.su_and_dependencies.collect { it.isDirectory() ? it : zipTree(it) } )
+  
+ }
+ 
+ 
+/*
+ * Build the application jar
+ * Note: This build script must be run after the NetworkSetStaticIPJar and the NetworkSettingsQuery scripts
+ *   or the resulting jars will not be in the application jar.  See dependsOn statement below.
+ */
+jar {
+	description = 'Firmware Installer Application Build'
+    baseName = 'FirmwareInstaller'
+    group = classes
+    
+	manifest {
+        attributes	'Implementation-Title': 'Firmware Installer Jar',  
+        			'Implementation-Version': version,
+        			'Main-Class': 'com.thesmartguild.firmloader.app.LoaderMain'
+    }
+
+	exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/*.MF'
+	
+	from {
+        configurations.runtime.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+
+        configurations.compile.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }      
+ 	}
+
+    from (sourceSets.main.output) {
+    	include "**"
+    }
+ 
+    from (sourceSets.main.resources) {
+    	include "**"
+    }
+}
+
+jar.dependsOn (NetworkSetStaticIPJar,  NetworkSettingsRestoreJar)
+
